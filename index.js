@@ -779,7 +779,11 @@ app.post("/webhook", async (req, res) => {
   }
   res.type("text/xml").send(twiml.toString());
 });
-
+// ── ENDPOINT PARA LIMPIAR HISTORIAL (TEMPORAL) ────────────────────────────────
+app.get("/reset-sesion", (req, res) => {
+  db.prepare("DELETE FROM sesiones WHERE usuario = ?").run(USUARIO_MAMA);
+  res.json({ status: "✅ Historial de conversación borrado" });
+});
 app.get("/", (req, res) => res.json({ status: "MamiFin Bot activo 🟢 — Argentina v2" }));
 
 const PORT = process.env.PORT || 3000;

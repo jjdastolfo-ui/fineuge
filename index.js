@@ -277,10 +277,42 @@ app.get("/reportes/:archivo", (req, res) => {
   fs.createReadStream(filePath).pipe(res);
 });
 
-// Endpoint temporal para limpiar historial contaminado
-app.get("/reset-historial", (req, res) => {
-  limpiarHistorial(USUARIO_MAMA);
-  res.json({ ok: true, mensaje: "Historial limpiado. Próximo mensaje al bot es turno nuevo." });
+// ── ENDPOINTS DE MANTENIMIENTO (TEMPORALES) ───────────────────────────────────
+app.get("/reset-sesion", (req, res) => {
+  db.prepare("DELETE FROM sesiones WHERE usuario = ?").run(USUARIO_MAMA);
+  res.json({ status: "✅ Historial de conversación borrado" });
+});
+
+app.get("/migrar-db", (req, res) => {
+  const resultados = [];
+  // Agregar columna 'moneda' a ingresos si no existe
+  try {
+    const cols = db.prepare("PRAGMA table_info(ingresos)").all();
+    const tieneMoneda = cols.some(c => c.name === "moneda");
+    if (!tieneMoneda) {
+      db.exec("ALTER TABLE ingresos ADD COLUMN moneda TEXT NOT NULL DEFAULT 'ARS'");
+      resultados.push("✅ Columna 'moneda' agregada a ingresos");
+    } else {
+      resultados.push("ℹ️ Columna 'moneda' ya existía");
+    }
+  } catch (e) { resultados.push("❌ Error ingresos: " + e.message); }
+  // Crear tabla cambios_moneda si no existe
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS cambios_moneda (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario TEXT NOT NULL,
+      moneda_origen TEXT NOT NULL,
+      monto_origen REAL NOT NULL,
+      moneda_destino TEXT NOT NULL,
+      monto_destino REAL NOT NULL,
+      tc REAL NOT NULL,
+      fecha TEXT NOT NULL,
+      nota TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`);
+    resultados.push("✅ Tabla 'cambios_moneda' verificada");
+  } catch (e) { resultados.push("❌ Error cambios_moneda: " + e.message); }
+  res.json({ status: "Migración completada", resultados });
 });
 
 function esReporte(t) {
